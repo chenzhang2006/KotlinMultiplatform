@@ -27,3 +27,27 @@ kotlin {
 configurations {
   compileClasspath
 }
+
+/*
+We need to supply the right Framework out of those four depending on the selected target in the Xcode project. It depends on the target configuration selected in Xcode.
+Also, we'd like to make Xcode compile the Framework for us before the build.
+ */
+task packForXCode(type: Sync) {
+  final File frameworkDir = new File(buildDir, "xcode-frameworks")
+  final String mode = System.getenv('CONFIGURATION')?.toUpperCase() ?: 'DEBUG'
+
+  inputs.property "mode", mode
+  dependsOn kotlin.targets.iOS.compilations.main.linkTaskName("FRAMEWORK", mode)
+
+  from { kotlin.targets.iOS.compilations.main.getBinary("FRAMEWORK", mode).parentFile }
+  into frameworkDir
+
+  doLast {
+    new File(frameworkDir, 'gradlew').with {
+      text = "#!/bin/bash\nexport 'JAVA_HOME=${System.getProperty("java.home")}'\ncd '${rootProject.rootDir}'\n./gradlew \$@\n"
+      setExecutable(true)
+    }
+  }
+}
+
+tasks.build.dependsOn packForXCode
